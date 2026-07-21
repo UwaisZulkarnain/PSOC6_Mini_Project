@@ -1,0 +1,11 @@
+build/
+libs/mtb_shared/
+../mtb_shared/
+bsps/*/config/GeneratedSource/
+__pycache__/
+*.pyc
+.venv/
+host/samples/*.wav
+*.elf
+*.hex
+*.map

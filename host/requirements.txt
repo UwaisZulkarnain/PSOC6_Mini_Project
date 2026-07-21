@@ -1,0 +1,6 @@
+pyserial
+sounddevice
+soundfile
+numpy
+flask
+flask-sock

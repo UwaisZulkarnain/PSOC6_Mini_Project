@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Drum Dashboard</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: #111; color: #ddd; font-family: 'Segoe UI', system-ui, sans-serif; padding: 20px; }
+h1 { text-align: center; margin-bottom: 20px; font-weight: 300; font-size: 1.6rem; color: #aaa; }
+#pads { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; margin-bottom: 24px; }
+.pad {
+  width: 130px; height: 130px; border-radius: 12px;
+  background: #222; border: 1px solid #444;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  cursor: default; user-select: none; transition: background 0.05s, box-shadow 0.05s;
+}
+.pad .label { font-size: 0.95rem; font-weight: 600; }
+.pad .count { font-size: 1.6rem; font-weight: 700; margin-top: 4px; color: #0af; }
+.pad.flash { background: #0af; box-shadow: 0 0 30px #0af; }
+.pad.flash .label, .pad.flash .count { color: #000; }
+#stats-bar { text-align: center; margin-bottom: 20px; color: #888; font-size: 0.9rem; }
+#stats-bar span { margin: 0 12px; }
+#total-count { color: #0af; font-weight: 700; }
+#event-log { max-width: 600px; margin: 0 auto; }
+#event-log h2 { font-weight: 300; font-size: 1rem; color: #666; margin-bottom: 8px; }
+#log-list { list-style: none; max-height: 300px; overflow-y: auto; font-family: 'Consolas', monospace; font-size: 0.8rem; }
+#log-list li { padding: 3px 6px; border-bottom: 1px solid #1a1a1a; color: #888; }
+#log-list li .ts { color: #555; margin-right: 8px; }
+#log-list li .hit-name { color: #0af; font-weight: 600; }
+#status { text-align: center; margin-top: 16px; font-size: 0.8rem; color: #555; }
+#status.connected { color: #0a0; }
+</style>
+</head>
+<body>
+<h1>drum dashboard</h1>
+<div id="pads"></div>
+<div id="stats-bar">total hits: <span id="total-count">0</span> &middot; uptime: <span id="uptime">0</span>s</div>
+<div id="event-log">
+  <h2>event log (last 50)</h2>
+  <ul id="log-list"></ul>
+</div>
+<div id="status">disconnected</div>
+<script>
+const PADS = ["kick","snare","hihat_closed","hihat_open","crash","tom","ride"];
+let total = 0;
+let counts = {};
+PADS.forEach(p => counts[p] = 0);
+const logList = document.getElementById("log-list");
+const padsEl = document.getElementById("pads");
+const totalEl = document.getElementById("total-count");
+const uptimeEl = document.getElementById("uptime");
+const statusEl = document.getElementById("status");
+const flashTimers = {};
+
+PADS.forEach((name, i) => {
+  const div = document.createElement("div");
+  div.className = "pad";
+  div.id = "pad-" + name;
+  div.innerHTML = `<div class="label">${name}</div><div class="count" id="c-${name}">0</div>`;
+  padsEl.appendChild(div);
+});
+
+function flashPad(name) {
+  const el = document.getElementById("pad-" + name);
+  if (!el) return;
+  el.classList.add("flash");
+  if (flashTimers[name]) clearTimeout(flashTimers[name]);
+  flashTimers[name] = setTimeout(() => el.classList.remove("flash"), 120);
+}
+
+function addLog(name, ts) {
+  const li = document.createElement("li");
+  const d = new Date(ts);
+  const timeStr = d.toLocaleTimeString("en-US", { hour12: false });
+  li.innerHTML = `<span class="ts">${timeStr}.${String(d.getMilliseconds()).padStart(3,"0")}</span><span class="hit-name">${name}</span>`;
+  logList.insertBefore(li, logList.firstChild);
+  while (logList.children.length > 50) logList.removeChild(logList.lastChild);
+}
+
+function updateUI(name) {
+  counts[name] = (counts[name] || 0) + 1;
+  total++;
+  document.getElementById("c-" + name).textContent = counts[name];
+  totalEl.textContent = total;
+}
+
+let ws = null;
+function connect() {
+  const proto = location.protocol === "https:" ? "wss:" : "ws:";
+  const url = proto + "//" + location.host + "/ws";
+  ws = new WebSocket(url);
+  ws.onopen = () => statusEl.textContent = "connected";
+  ws.onclose = () => { statusEl.textContent = "disconnected — reconnecting..."; setTimeout(connect, 2000); };
+  ws.onmessage = (e) => {
+    const ev = JSON.parse(e.data);
+    flashPad(ev.pad);
+    updateUI(ev.pad);
+    addLog(ev.pad, ev.ts);
+  };
+}
+connect();
+
+setInterval(() => {
+  fetch("/stats").then(r => r.json()).then(d => {
+    uptimeEl.textContent = d.uptime_s.toFixed(1);
+  }).catch(() => {});
+}, 2000);
+</script>
+</body>
+</html>
