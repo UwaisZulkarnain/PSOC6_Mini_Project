@@ -1,9 +1,0 @@
-{
-    "recommendations": [
-        "marus25.cortex-debug",
-        "dan-c-underwood.arm"
-    ],
-    "unwantedRecommendations": [
-        "ms-vscode.cpptools"
-    ]
-}
